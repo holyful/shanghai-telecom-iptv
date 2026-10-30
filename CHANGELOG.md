@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 - 2026-10-31
 
 - Official Shanghai Telecom authentication and channel/EPG retrieval.
 - Trusted-LAN channel browser, programme guide, refresh logs and scheduling.

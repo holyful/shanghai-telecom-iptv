@@ -147,6 +147,9 @@ class Transport:
         return decode_body(raw)
 
     def cookie(self, name, value, url):
+        if not isinstance(value, (str, int)):
+            raise ProviderError('Invalid session cookie type')
+        value = str(value)
         if any(c in value for c in '\r\n\t'):
             raise ProviderError('Invalid session cookie')
         with self.cookies.open('a', encoding='utf-8') as f:
@@ -161,6 +164,17 @@ def group_for(name):
     if name.startswith(('SiTV', 'CHC')):
         return '\u4e13\u9898'
     return '\u5730\u65b9\u4e0e\u5176\u4ed6'
+
+
+def quality_for(name):
+    upper = name.upper()
+    if '4K' in upper:
+        return '4K'
+    if 'HD' in upper or '\u9ad8\u6e05' in name:
+        return 'HD'
+    if upper.endswith('SD') or '\u6807\u6e05' in name:
+        return 'SD'
+    return ''
 
 
 def fetch(config, progress):
@@ -194,8 +208,7 @@ def fetch(config, progress):
             raise ProviderError('EPG redirect missing')
         url = urljoin(epg, html.unescape(balanced[2]))
         form = pick_form(http.request(url, referer=epg))
-        form['inputs'].setdefault('UserToken', token)
-        form['inputs'].setdefault('UserID', config['user_id'])
+        form['inputs'].update({'UserToken': token, 'UserID': config['user_id']})
         for key, value in {'STBID': '0', 'stbinfo': '', 'prmid': '', 'stbtype': '', 'drmsupplier': ''}.items():
             form['inputs'].setdefault(key, value)
         auth_url = urljoin(url, form.get('action', 'funcportalauth.jsp'))
@@ -235,7 +248,7 @@ def fetch(config, progress):
                 continue
             name = info['name']
             channels.append({'id': cid, 'name': name, 'group': group_for(name),
-                             'quality': '4K' if '4K' in name else ('HD' if 'HD' in name else 'SD'),
+                             'quality': quality_for(name),
                              'multicast': raw['ChannelURL'].removeprefix('igmp://')})
         now = int(time.time() * 1000)
         for index, channel in enumerate(channels):

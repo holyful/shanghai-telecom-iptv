@@ -11,8 +11,8 @@ transport. The UI browses real channels and programmes, refresh status and histo
 - [x] Tested atomic snapshots, one refresh at a time, persisted daily schedule,
       last-good cache, sanitised public APIs and legacy compatibility.
 - [x] UI: responsive channel list, guide, logs and manual refresh.
-- [ ] Staging live refresh, desktop/mobile UI checks and stream test.
-- [ ] Backup and cutover; legacy endpoint and Jellyfin verification, rollback.
+- [x] Staging live refresh, desktop/mobile UI checks and stream test.
+- [x] Backup and cutover; legacy endpoint and Jellyfin verification, rollback.
 - [ ] Public README, configuration and account-discovery guide; secret scan of
       all committed files/history before creating/pushing public GitHub repo.
 
@@ -25,3 +25,8 @@ incomplete future EPG cannot replace a healthy snapshot; a scheduled refresh
 rejected by the cooldown remains due. Regression tests cover all three cases.
 Python package data includes vendored icon assets and licenses. Explicit host
 aliases preserve LAN DNS subscriptions while unknown Host values remain denied.
+
+Validation: 22 Python tests and 14 browser tests pass; CI also builds Docker and
+checks installed assets outside the source tree. A synthetic full authentication
+chain tests empty hidden fields and numeric cookie expiry. Real HTTP MPEG-TS was
+probed from the media-server container; no end-user Apple TV UI test is claimed.
