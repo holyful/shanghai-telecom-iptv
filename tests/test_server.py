@@ -46,6 +46,56 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(self.request('/config.json')[0], 404)
         self.assertEqual(self.request('/api/status', headers={'Host': 'attacker.invalid'})[0], 403)
 
+    def test_jellyfin_exports_are_separate_and_match_guide_ids(self):
+        import xml.etree.ElementTree as ET
+        original = self.request('/m3u/xteve.m3u')[2]
+        status, _, body = self.request('/m3u/jellyfin.m3u')
+        self.assertEqual(status, 200)
+        self.assertIn(b'[Demo] Demo HD', body)
+        self.assertIn(b'/xmltv/jellyfin.xml', body)
+        self.assertIn(b'tvg-id="shct.1"', body)
+        self.assertIn(b'/stream/shct-1', body)
+        status, _, xml = self.request('/xmltv/jellyfin.xml')
+        self.assertEqual(status, 200)
+        root = ET.fromstring(xml)
+        self.assertEqual(root.find('channel').attrib['id'], 'shct.1')
+        self.assertEqual(root.find('channel/display-name').text, '[Demo] Demo HD')
+        self.assertEqual(root.find('programme').attrib['channel'], 'shct.1')
+        self.assertEqual(self.request('/m3u/xteve.m3u')[2], original)
+
+    def test_jellyfin_exports_require_validated_snapshot(self):
+        self.service.snapshot = {'channels': [], 'programmes': {}}
+        for path in ('/m3u/jellyfin.m3u', '/xmltv/jellyfin.xml'):
+            self.assertEqual(self.request(path)[0], 503)
+
+    def test_jellyfin_group_sort_keeps_all_channels_and_legacy_identity(self):
+        import re
+        data = fixture()
+        data['channels'] = [
+            dict(data['channels'][0], id=cid, name=name, group=group)
+            for cid, name, group in (
+                ('90', 'Local', '\u5730\u65b9\u4e0e\u5176\u4ed6'),
+                ('10', 'CCTV-10', '\u592e\u89c6'),
+                ('80', 'Special', '\u4e13\u9898'),
+                ('2', 'CCTV-2', '\u592e\u89c6'),
+                ('40', 'Satellite', '\u536b\u89c6'),
+                ('1', 'Other', 'Unknown'),
+            )]
+        self.service.snapshot = data
+        self.service.legacy = {'2': {'epg_id': 'x-ID.7', 'number': '1007', 'stream_id': 'oldhash'}}
+        original = self.request('/m3u/xteve.m3u')[2]
+        status, _, body = self.request('/m3u/jellyfin.m3u')
+        self.assertEqual(status, 200)
+        text = body.decode()
+        ids = re.findall(r'tvg-id="([^"]+)"', text)
+        self.assertEqual(ids, ['x-ID.7', 'shct.10', 'shct.40', 'shct.80', 'shct.90', 'shct.1'])
+        self.assertEqual(re.findall(r'tvg-chno="([^"]+)"', text), ['1', '2', '3', '4', '5', '6'])
+        self.assertIn('/stream/oldhash', text)
+        self.assertEqual(len(set(ids)), len(data['channels']))
+        self.assertEqual(self.request('/m3u/xteve.m3u')[2], original)
+        data['channels'].reverse()
+        self.assertEqual(self.request('/m3u/jellyfin.m3u')[2], body)
+
     def test_explicit_legacy_hostname_alias(self):
         self.assertEqual(self.request('/m3u/xteve.m3u?group-title=legacy', headers={'Host': 'router.local:34400'})[0], 200)
 

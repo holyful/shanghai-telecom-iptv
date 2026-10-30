@@ -89,12 +89,13 @@ def make_server(service, bind, port):
                 end = (begin + timedelta(days=1)).timestamp()
                 rows = [p for p in data['programmes'].get(cid, []) if p['start'] < end and p['end'] > begin.timestamp()]
                 return self.send(200, {'channel': channel, 'date': date, 'programmes': rows})
-            if path in ('/m3u/xteve.m3u', '/playlist.m3u', '/xmltv/xteve.xml', '/xmltv/xteve.xml.gz', '/epg.xml'):
+            if path in ('/m3u/xteve.m3u', '/playlist.m3u', '/m3u/jellyfin.m3u', '/xmltv/jellyfin.xml', '/xmltv/xteve.xml', '/xmltv/xteve.xml.gz', '/epg.xml'):
                 if not data['channels']:
                     return self.send(503, {'error': 'No validated snapshot yet'})
+                jellyfin = path in ('/m3u/jellyfin.m3u', '/xmltv/jellyfin.xml')
                 if path.endswith('.m3u'):
-                    return self.send(200, make_m3u(data, base, service.legacy), 'audio/x-mpegurl; charset=utf-8')
-                body = make_xmltv(data, service.legacy)
+                    return self.send(200, make_m3u(data, base, service.legacy, jellyfin), 'audio/x-mpegurl; charset=utf-8')
+                body = make_xmltv(data, service.legacy, jellyfin)
                 if path.endswith('.gz'):
                     return self.send(200, gzip.compress(body), 'application/gzip')
                 return self.send(200, body, 'application/xml; charset=utf-8')

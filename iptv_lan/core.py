@@ -87,18 +87,29 @@ def attribute(value):
     return str(value).replace('"', "'").replace('\r', ' ').replace('\n', ' ')
 
 
-def make_m3u(data, base_url, legacy):
-    lines = [f'#EXTM3U x-tvg-url="{base_url}/xmltv/xteve.xml"']
-    for c in data['channels']:
+def export_channels(data, jellyfin=False):
+    if not jellyfin:
+        return data['channels']
+    groups = ('\u592e\u89c6', '\u536b\u89c6', '\u4e13\u9898', '\u5730\u65b9\u4e0e\u5176\u4ed6')
+    order = {group: index for index, group in enumerate(groups)}
+    channels = sorted(data['channels'], key=lambda c: (order.get(c['group'], len(order)), c['group'], int(c['id'])))
+    return [dict(c, name=f'[{c["group"]}] {c["name"]}') for c in channels]
+
+
+def make_m3u(data, base_url, legacy, jellyfin=False):
+    guide = 'jellyfin' if jellyfin else 'xteve'
+    lines = [f'#EXTM3U x-tvg-url="{base_url}/xmltv/{guide}.xml"']
+    for number, c in enumerate(export_channels(data, jellyfin), start=1):
         ident = channel_identity(c['id'], legacy)
-        lines.append(f'#EXTINF:-1 tvg-id="{attribute(ident["epg_id"])}" tvg-name="{attribute(c["name"])}" tvg-chno="{attribute(ident["number"])}" group-title="{attribute(c["group"])}",{attribute(c["name"])}')
+        channel_number = number if jellyfin else ident['number']
+        lines.append(f'#EXTINF:-1 tvg-id="{attribute(ident["epg_id"])}" tvg-name="{attribute(c["name"])}" tvg-chno="{attribute(channel_number)}" group-title="{attribute(c["group"])}",{attribute(c["name"])}')
         lines.append(f'{base_url}/stream/{ident["stream_id"]}')
     return ('\n'.join(lines) + '\n').encode('utf-8')
 
 
-def make_xmltv(data, legacy):
+def make_xmltv(data, legacy, jellyfin=False):
     root = ET.Element('tv', {'generator-info-name': 'HomeCast Shanghai Telecom'})
-    for c in data['channels']:
+    for c in export_channels(data, jellyfin):
         cid = channel_identity(c['id'], legacy)['epg_id']
         node = ET.SubElement(root, 'channel', {'id': cid})
         ET.SubElement(node, 'display-name', {'lang': 'zh'}).text = c['name']
