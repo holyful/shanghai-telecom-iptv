@@ -1,0 +1,9 @@
+*
+!Dockerfile
+!pyproject.toml
+!requirements.lock
+!LICENSE
+!iptv_lan/
+!iptv_lan/**
+**/__pycache__
+**/*.pyc

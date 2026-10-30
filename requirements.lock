@@ -1,0 +1,5 @@
+# Runtime versions validated on Linux amd64. Update together with a tested release.
+cffi==2.1.1
+cryptography==46.0.7
+pycparser==3.12
+tzdata==2026.6
