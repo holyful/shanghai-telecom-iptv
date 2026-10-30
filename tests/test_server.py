@@ -42,6 +42,11 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(status, 302)
         self.assertEqual(headers['Location'], 'http://example.test:4022/udp/239.1.1.1:1234')
 
+    def test_subscription_base_is_configured_not_the_browser_host(self):
+        status, _, body = self.request('/api/status')
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)['public_url'], 'http://example.test:34400')
+
     def test_no_private_file_or_rebinding_access(self):
         self.assertEqual(self.request('/config.json')[0], 404)
         self.assertEqual(self.request('/api/status', headers={'Host': 'attacker.invalid'})[0], 403)

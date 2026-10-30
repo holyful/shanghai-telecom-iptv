@@ -20,7 +20,8 @@ including the date sent to the programme endpoint.
 - Status polling: 5 seconds when idle, 2 seconds while refreshing; channel
   data reloads when `last_success` changes, at programme boundaries, or after
   a channel read failed. Slow guide/log requests do not delay status polling.
-- Download compatibility: `/m3u/xteve.m3u`, `/xmltv/xteve.xml`.
+- Subscription dialog: absolute HTTP URLs with copy controls and optional downloads.
+  Existing endpoints stay unchanged: `/m3u/xteve.m3u`, `/xmltv/xteve.xml`.
 - Requests time out after 12 seconds. Guide selection cancels older requests.
   Existing channel data remains visible after a status connection failure.
 - All server strings are inserted through `textContent`, not HTML parsing.

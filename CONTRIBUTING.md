@@ -26,11 +26,16 @@ npm install --no-save playwright@1.58.2
 npx playwright install chromium
 FRONTEND_BROWSER=chromium node --test tests/frontend.test.cjs
 docker build -t homecast-review .
+python tests/docker_smoke.py homecast-review
+docker compose config --quiet
+docker compose -f compose.yaml -f compose.build.yaml config --quiet
 ```
 
 PowerShell uses `$env:FRONTEND_BROWSER = 'chromium'` before the same Node command.
 Python/browser tests run cross-platform; actual interface binding and IPTV
-authentication require Linux with an authorized IPTV network.
+authentication require Linux with an authorized IPTV network. The container smoke
+test requires a local Linux Docker engine and uses synthetic fixtures without
+contacting the operator. It checks direct environment and persisted scheduling.
 
 Add a regression test before fixing a bug. Verify the installed wheel includes
 static assets and third-party licenses; running from the source tree alone can

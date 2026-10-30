@@ -6,14 +6,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import ipaddress
 import json
 import mimetypes
-import os
 from pathlib import Path
 import signal
 import threading
 import time
 from urllib.parse import parse_qs, urlsplit
 
+from . import __version__
 from .core import TZ, channel_identity, make_m3u, make_xmltv, public_channels
+from .config import ConfigError, load_config
 from .service import Service
 
 
@@ -69,7 +70,7 @@ def make_server(service, bind, port):
             query = parse_qs(urlsplit(self.path).query)
             data = service.snapshot
             if path in ('/health', '/api/status'):
-                return self.send(200, service.status())
+                return self.send(200, {**service.status(), 'public_url': base})
             if path == '/api/channels':
                 return self.send(200, {'channels': public_channels(data)})
             if path == '/api/logs':
@@ -117,7 +118,7 @@ def make_server(service, bind, port):
                 return self.send(200, {'ScanInProgress': 0, 'ScanPossible': 0, 'Source': 'Cable', 'SourceList': ['Cable']})
             if path == '/discover.json':
                 return self.send(200, {'FriendlyName': 'HomeCast', 'Manufacturer': 'HomeCast', 'ModelNumber': 'HDHR',
-                                       'FirmwareName': 'homecast', 'FirmwareVersion': '0.1.0',
+                                       'FirmwareName': 'homecast', 'FirmwareVersion': __version__,
                                        'DeviceID': config.get('device_id', '12345678'), 'DeviceAuth': 'homecast',
                                        'BaseURL': base, 'LineupURL': base + '/lineup.json', 'TunerCount': config.get('tuner_count', 4)})
             if path in ('/', '/web', '/web/'):
@@ -159,11 +160,10 @@ def make_server(service, bind, port):
 
 
 def main():
-    path = Path(os.environ.get('HOMECAST_CONFIG', '/config/config.json'))
-    config = json.loads(path.read_text(encoding='utf-8'))
-    required = ('user_id', 'protocol_sn', 'mac', 'interface', 'auth_host', 'public_url', 'udpxy_url', 'bind_address')
-    if any(not config.get(key) or 'CHANGE_ME' in config[key] for key in required):
-        raise SystemExit('Complete the private configuration before starting HomeCast')
+    try:
+        config = load_config()
+    except ConfigError as exc:
+        raise SystemExit(str(exc)) from None
     service = Service(config)
     server = make_server(service, config['bind_address'], int(config.get('port', 34400)))
     stop = threading.Event()

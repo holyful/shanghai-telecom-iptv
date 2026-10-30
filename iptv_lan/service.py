@@ -20,6 +20,9 @@ class Service:
                          'auto_refresh': config.get('auto_refresh', True)}
         if (self.directory / 'settings.json').exists():
             self.settings.update(json.loads((self.directory / 'settings.json').read_text()))
+        self.managed_settings = sorted(key for key in config.get('_environment_settings', [])
+                                       if key in ('refresh_time', 'auto_refresh'))
+        self.settings.update({key: config[key] for key in self.managed_settings})
         self.legacy = {}
         if config.get('legacy_file') and Path(config['legacy_file']).exists():
             self.legacy = json.loads(Path(config['legacy_file']).read_text())
@@ -65,7 +68,8 @@ class Service:
                     'channel_count': len(data['channels']), 'programme_count': len(programmes),
                     'coverage_end': max((p['end'] for p in programmes), default=None),
                     'cache_available': bool(data['channels']), 'source': 'Shanghai Telecom',
-                    'version': __version__, 'timezone': 'Asia/Shanghai', **self.settings}
+                    'version': __version__, 'timezone': 'Asia/Shanghai',
+                    'managed_settings': self.managed_settings, **self.settings}
 
     def update_settings(self, settings):
         value = {'refresh_time': validate_time(settings.get('refresh_time')),
@@ -73,6 +77,8 @@ class Service:
         if not isinstance(value['auto_refresh'], bool):
             raise ValueError('auto_refresh must be boolean')
         with self.lock:
+            if any(value[key] != self.config[key] for key in self.managed_settings):
+                raise ValueError('Schedule setting is managed by the container environment')
             atomic_json(self.directory / 'settings.json', value)
             self.settings = value
             self.next_run = next_refresh(time.time(), value['refresh_time'])

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.0 - 2026-10-31
+
+- Environment-only configuration with strict validation and safe startup errors,
+  without additional JSON or secret-file configuration layers.
+- Default Compose pulls the published image and keeps state in one data volume;
+  source builds use a separate optional Compose override.
+- Explicit environment schedule settings override persisted settings and are
+  locked in the existing schedule UI.
+- Subscription dialog shows and copies HTTP M3U/XMLTV URLs; file downloads are
+  secondary actions. Existing client URLs and stream identities are unchanged.
+- Shared-config container health check and real-container regression tests for
+  direct environment configuration and persisted schedule settings.
+- Deployment prerequisites, external udpxy setup, configuration precedence and
+  migration documentation. No bundled udpxy or Docker administration panel.
+
 ## 0.1.0 - 2026-10-31
 
 - Official Shanghai Telecom authentication and channel/EPG retrieval.

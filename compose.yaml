@@ -1,8 +1,11 @@
+name: homecast
+
 services:
   homecast:
-    build: .
-    image: homecast-shanghai:local
+    image: ghcr.io/holyful/shanghai-telecom-iptv:0.2.0
     container_name: homecast
+    # Linux host with a working Shanghai Telecom IPTV interface.
+    # No ports mapping: the app listens on HOMECAST_BIND_ADDRESS.
     network_mode: host
     restart: unless-stopped
     read_only: true
@@ -11,9 +14,28 @@ services:
     security_opt: [no-new-privileges:true]
     mem_limit: 256m
     cpus: 0.5
+    environment:
+      # Private identity: replace all placeholders. Never publish filled values.
+      HOMECAST_USER_ID: "CHANGE_ME"
+      HOMECAST_PROTOCOL_SN: "CHANGE_ME"
+      HOMECAST_MAC: "CHANGE_ME"
+      # Local LAN IPv4 to listen on, without a scheme or port.
+      HOMECAST_BIND_ADDRESS: "192.0.2.1"
+      HOMECAST_ALLOWED_NETWORKS: "192.0.2.0/24"
+      # Canonical HomeCast origin for subscriptions, not a public Internet URL.
+      HOMECAST_PUBLIC_URL: "http://192.0.2.1:34400"
+      # Independent udpxy origin; every playback client must reach it directly.
+      HOMECAST_UDPXY_URL: "http://192.0.2.1:4022"
+      # Existing Linux IPTV interface, not the Internet/WAN interface.
+      HOMECAST_INTERFACE: "br-iptv"
+      # Optional extra Host aliases, without scheme, port or path.
+      # HOMECAST_ALLOWED_HOSTS: "router.local"
+      # Leave unset for editable UI defaults: 05:00 Asia/Shanghai, auto on.
+      # Explicit values override saved UI settings and lock that field.
+      # HOMECAST_REFRESH_TIME: "05:00"
+      # HOMECAST_AUTO_REFRESH: "true"
     volumes:
-      - ./config.json:/config/config.json:ro
-      - ./data:/data
+      - data:/data
     tmpfs:
       - /tmp:size=32m,mode=1777
     logging:
@@ -21,3 +43,6 @@ services:
       options:
         max-size: 5m
         max-file: "2"
+
+volumes:
+  data:

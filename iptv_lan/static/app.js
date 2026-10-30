@@ -93,12 +93,41 @@
     $('refresh-button').querySelector('svg')?.classList.toggle('spin', busy);
     text('refresh-label', busy ? '更新中' : '立即更新');
   }
+  function openSubscriptions() {
+    $('subscription-m3u').value = new URL('/m3u/xteve.m3u', state.status.public_url).href;
+    $('subscription-xmltv').value = new URL('/xmltv/xteve.xml', state.status.public_url).href;
+    text('subscriptions-feedback', '');
+    $('subscriptions-dialog').showModal();
+  }
+  async function copySubscription(button) {
+    const kind = button.dataset.copy;
+    const input = $('subscription-' + kind);
+    const feedback = $('subscriptions-feedback');
+    button.disabled = true;
+    feedback.classList.remove('success');
+    text('subscriptions-feedback', '');
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(input.value);
+      } else {
+        // Trusted LANs commonly use HTTP, where the Clipboard API is unavailable.
+        input.focus(); input.select();
+        if (!document.execCommand('copy')) throw new Error('Clipboard unavailable');
+      }
+      feedback.classList.add('success');
+      text('subscriptions-feedback', `${kind.toUpperCase()} 订阅链接已复制`);
+    } catch {
+      input.focus(); input.select();
+      text('subscriptions-feedback', '浏览器未允许自动复制，地址已选中');
+    } finally { button.disabled = false; }
+  }
   function renderStatus() {
     const status = state.status;
     $('connection').dataset.state = state.connected ? status?.state : 'offline';
     text('connection-label', !state.connected ? '连接中断' : ({ idle: '运行正常', refreshing: '更新中', error: '更新异常' }[status.state] || '状态未知'));
     show('connection-error', !state.connected);
     updateRefreshButton();
+    $('subscriptions-open').disabled = !status;
     if (!status) return;
     text('channel-count', count(status.channel_count));
     text('programme-count', count(status.programme_count));
@@ -393,12 +422,23 @@
     } catch (error) { toast(`无法开始更新：${error.message}`); }
     finally { state.refreshPending = false; updateRefreshButton(); }
   }
+  function updateSettingsControls() {
+    const managed = new Set(state.status?.managed_settings || []);
+    for (const [id, key] of [['refresh-time', 'refresh_time'], ['auto-refresh', 'auto_refresh']]) {
+      $(id).disabled = state.saving || managed.has(key);
+      $(id).title = managed.has(key) ? '由容器环境变量管理' : '';
+    }
+    $('settings-save').disabled = state.saving || (managed.has('refresh_time') && managed.has('auto_refresh'));
+    $('settings-save').title = managed.size === 2 ? '由容器环境变量管理' : '';
+    for (const id of ['settings-close', 'settings-cancel']) $(id).disabled = state.saving;
+  }
   function openSettings() {
     if (!state.status) { toast('服务状态尚未就绪'); return; }
     $('refresh-time').value = state.status.refresh_time || '05:00';
     $('auto-refresh').checked = Boolean(state.status.auto_refresh);
     text('settings-feedback', '');
     $('settings-feedback').classList.remove('success');
+    updateSettingsControls();
     $('settings-dialog').showModal();
   }
   function closeSettings() { if (!state.saving) $('settings-dialog').close(); }
@@ -408,7 +448,7 @@
     const settings = { refresh_time: $('refresh-time').value, auto_refresh: $('auto-refresh').checked };
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(settings.refresh_time)) { text('settings-feedback', '请选择有效的每日更新时间'); return; }
     state.saving = true;
-    for (const id of ['settings-save', 'settings-close', 'settings-cancel', 'refresh-time', 'auto-refresh']) $(id).disabled = true;
+    updateSettingsControls();
     text('settings-feedback', '正在保存…'); $('settings-feedback').classList.remove('success');
     try {
       const result = await request('/api/settings', { method: 'POST', body: settings });
@@ -421,7 +461,7 @@
     } catch (error) { text('settings-feedback', `保存失败：${error.message}`); }
     finally {
       state.saving = false;
-      for (const id of ['settings-save', 'settings-close', 'settings-cancel', 'refresh-time', 'auto-refresh']) $(id).disabled = false;
+      updateSettingsControls();
     }
   }
   function changeDate(value) {
@@ -437,6 +477,10 @@
   text('today-label', longDate.format(new Date()));
   $('refresh-button').disabled = true;
   $('settings-open').disabled = true;
+  $('subscriptions-open').disabled = true;
+  $('subscriptions-open').addEventListener('click', openSubscriptions);
+  $('subscriptions-close').addEventListener('click', () => $('subscriptions-dialog').close());
+  document.querySelectorAll('[data-copy]').forEach(button => button.addEventListener('click', () => copySubscription(button)));
   $('channel-search').addEventListener('input', event => { state.query = event.target.value; renderChannels(); });
   $('search-clear').addEventListener('click', () => { state.query = ''; $('channel-search').value = ''; renderChannels(); $('channel-search').focus(); });
   $('channels-retry').addEventListener('click', () => state.connected ? loadChannels() : poll());

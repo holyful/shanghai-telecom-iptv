@@ -23,7 +23,7 @@ function fixture() {
     status: { state: 'idle', stage: '', progress: 0, last_success: now - 300, last_attempt: now - 300,
       next_refresh: now + 3600, channel_count: 3, programme_count: 36, coverage_end: now + 86400,
       last_error: null, version: '0.1.0', refresh_time: '05:00', auto_refresh: true,
-      source: 'Shanghai Telecom', cache_available: true },
+      source: 'Shanghai Telecom', cache_available: true, public_url: origin },
     channels: structuredClone(channels), requests: [], fail: new Set(), delays: new Map(), programmes: null,
   };
 }
@@ -82,6 +82,77 @@ test('browser workflows and responsive layout', async t => {
   if (!fs.existsSync(path.join(root, 'index.html'))) return t.skip('First screen not implemented yet');
   const browser = await chromium.launch({ headless: true, channel: process.env.FRONTEND_BROWSER || 'chrome' });
   t.after(() => browser.close());
+  await t.test('subscription URLs copy without downloads and fit mobile dialogs', async () => {
+    const { context, page, data, errors } = await setup(browser);
+    try {
+      const subscriptionOrigin = 'http://subscribe.example.test:34400';
+      data.status.public_url = subscriptionOrigin;
+      await page.addInitScript(() => {
+        window.copied = [];
+        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+          writeText: async value => { window.copied.push(value); },
+        } });
+      });
+      await ready(page);
+      assert.equal(await page.getByRole('button', { name: '订阅链接', exact: true }).count(), 1);
+      assert.equal(await page.locator('.main-actions a[download]').count(), 0);
+      await page.getByRole('button', { name: '订阅链接', exact: true }).click();
+      for (const [type, endpoint] of [['M3U', '/m3u/xteve.m3u'], ['XMLTV', '/xmltv/xteve.xml']]) {
+        const field = page.getByRole('textbox', { name: `${type} 订阅地址`, exact: true });
+        assert.equal(await field.inputValue(), subscriptionOrigin + endpoint);
+        assert.equal(await field.getAttribute('readonly'), '');
+        await page.getByRole('button', { name: `复制 ${type} 订阅链接`, exact: true }).click();
+        await page.getByText(`${type} 订阅链接已复制`, { exact: true }).waitFor();
+        assert.equal((await page.evaluate(() => window.copied)).at(-1), subscriptionOrigin + endpoint);
+        assert.equal(await page.getByRole('link', { name: `下载 ${type} 文件`, exact: true }).getAttribute('href'), endpoint);
+      }
+      assert.ok(!data.requests.some(r => /\.(m3u|xml)$/.test(r.path)));
+      for (const width of [1440, 768, 390, 320]) {
+        await page.setViewportSize({ width, height: 900 });
+        const geometry = await page.locator('#subscriptions-dialog').evaluate(dialog => {
+          const box = dialog.getBoundingClientRect();
+          return { left: box.left, right: box.right, overflow: dialog.scrollWidth > dialog.clientWidth };
+        });
+        assert.ok(geometry.left >= 0 && geometry.right <= width && !geometry.overflow, `dialog overflow at ${width}px`);
+        if (process.env.FRONTEND_SCREENSHOTS && [1440, 390].includes(width)) {
+          fs.mkdirSync(process.env.FRONTEND_SCREENSHOTS, { recursive: true });
+          await page.screenshot({ path: path.join(process.env.FRONTEND_SCREENSHOTS, `subscriptions-${width}.png`) });
+        }
+      }
+      await page.keyboard.press('Escape');
+      assert.equal(await page.locator('#subscriptions-dialog').isVisible(), false);
+      assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+  });
+  await t.test('HTTP clipboard fallback selects the URL and reports blocked copies honestly', async () => {
+    const { context, page, errors } = await setup(browser);
+    try {
+      await ready(page);
+      assert.equal(await page.locator('#subscriptions-open').count(), 1);
+      await page.locator('#subscriptions-open').click();
+      await page.evaluate(() => {
+        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: undefined });
+        window.copyCommand = null;
+        document.execCommand = command => { window.copyCommand = command; return true; };
+      });
+      await page.getByRole('button', { name: '复制 M3U 订阅链接', exact: true }).click();
+      await page.getByText('M3U 订阅链接已复制', { exact: true }).waitFor();
+      assert.equal(await page.evaluate(() => window.copyCommand), 'copy');
+      await page.evaluate(() => { document.execCommand = () => false; });
+      await page.getByRole('button', { name: '复制 XMLTV 订阅链接', exact: true }).click();
+      await page.getByText('浏览器未允许自动复制，地址已选中', { exact: true }).waitFor();
+      assert.equal(await page.locator('#subscription-xmltv').evaluate(input => input.value.slice(input.selectionStart, input.selectionEnd)), origin + '/xmltv/xteve.xml');
+      await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+        writeText: async () => { throw new Error('blocked'); },
+      } }));
+      await page.getByRole('button', { name: '复制 M3U 订阅链接', exact: true }).click();
+      await page.getByText('浏览器未允许自动复制，地址已选中', { exact: true }).waitFor();
+      assert.equal(await page.locator('#subscription-m3u').evaluate(input => input.selectionEnd), (origin + '/m3u/xteve.m3u').length);
+      await page.getByRole('button', { name: '关闭订阅链接', exact: true }).click();
+      assert.equal(await page.locator('#subscriptions-dialog').isVisible(), false);
+      assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+  });
   await t.test('real API data, safe text, channel selection, filters and date navigation', async () => {
     const { context, page, data, errors } = await setup(browser);
     try {
@@ -128,6 +199,28 @@ test('browser workflows and responsive layout', async t => {
       assert.deepEqual(errors, []);
     } finally { await context.close(); }
   });
+  await t.test('environment-owned schedule fields cannot be edited in the browser', async () => {
+    const { page, context, data } = await setup(browser);
+    try {
+      data.status.managed_settings = ['auto_refresh', 'refresh_time'];
+      await ready(page);
+      await page.getByRole('button', { name: '更新设置', exact: true }).click();
+      assert.equal(await page.locator('#auto-refresh').isDisabled(), true);
+      assert.equal(await page.locator('#refresh-time').isDisabled(), true);
+      assert.equal(await page.locator('#settings-save').isDisabled(), true);
+      await page.locator('#settings-cancel').click();
+      data.status.managed_settings = ['auto_refresh'];
+      await page.reload();
+      await page.getByRole('button', { name: '更新设置', exact: true }).click();
+      assert.equal(await page.locator('#auto-refresh').isDisabled(), true);
+      assert.equal(await page.locator('#refresh-time').isDisabled(), false);
+      await page.locator('#refresh-time').fill('07:15');
+      await page.locator('#settings-save').click();
+      await page.getByText('设置已保存', { exact: true }).waitFor();
+      assert.equal(await page.locator('#auto-refresh').isDisabled(), true);
+    } finally { await context.close(); }
+  });
+
   await t.test('offline startup is honest and retry recovers', async () => {
     const { context, page, data } = await setup(browser);
     try {

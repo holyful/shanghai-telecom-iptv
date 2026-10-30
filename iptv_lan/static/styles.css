@@ -53,7 +53,6 @@ svg.lucide { width: 18px; height: 18px; flex: 0 0 auto; stroke-width: 1.8; }
 .primary:hover:not(:disabled) { background: var(--emerald-dark); border-color: var(--emerald-dark); }
 .secondary { background: white; border-color: #dce1e4; }
 .secondary:hover:not(:disabled) { background: #f1f4f5; }
-.button .download-icon { height: 14px; width: 14px; color: var(--muted); }
 .text-button { color: var(--emerald); font-size: 12px; padding: 6px 3px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .text-button:hover { text-decoration: underline; }
 .notice { display: flex; gap: 10px; align-items: center; padding: 12px 14px; margin-bottom: 16px; border: 1px solid; border-radius: 6px; font-size: 13px; overflow-wrap: anywhere; }
@@ -172,6 +171,14 @@ dialog { border: 1px solid var(--line); border-radius: 8px; padding: 24px; width
 dialog::backdrop { background: #17251e45; }
 .dialog-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; }
 .dialog-heading h2 { font-size: 21px; }
+#subscriptions-dialog { width: min(560px, calc(100% - 32px)); }
+.subscription-entry + .subscription-entry { margin-top: 20px; }
+.subscription-entry label { display: block; font-size: 13px; font-weight: 550; margin-bottom: 8px; }
+.subscription-address { display: flex; align-items: center; gap: 8px; }
+.subscription-address input { flex: 1; min-width: 0; width: 100%; padding: 10px; font-size: 12px; }
+.subscription-entry > a { display: inline-flex; color: var(--muted); margin-top: 6px; font-size: 11px; }
+.subscription-entry > a svg { width: 13px; height: 13px; }
+#subscriptions-feedback { margin-bottom: 0; }
 .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 17px 0; border-bottom: 1px solid var(--line); }
 .setting-row label { font-size: 13px; }
 .setting-row input[type="time"] { width: 120px; font-size: 13px; }
@@ -199,7 +206,7 @@ dialog::backdrop { background: #17251e45; }
 @media (max-width: 800px) {
   .header-inner { min-height: 72px; padding: 12px 20px; } .header-right { gap: 12px; }
   .page { padding: 20px 20px 0; } .page-heading { align-items: flex-start; gap: 16px; }
-  .main-actions { gap: 6px; } .button { padding: 8px 10px; } .button .download-icon { display: none; }
+  .main-actions { gap: 6px; } .button { padding: 8px 10px; }
   .metrics { grid-template-columns: 1fr 1fr; padding: 0; margin-bottom: 20px; }
   .metric { padding: 17px 20px; } .metric:first-child { padding-left: 20px; }
   .metric:nth-child(2) { border-right: 0; } .metric:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
