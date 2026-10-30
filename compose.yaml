@@ -1,0 +1,23 @@
+services:
+  homecast:
+    build: .
+    image: homecast-shanghai:local
+    container_name: homecast
+    network_mode: host
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_RAW]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: 0.5
+    volumes:
+      - ./config.json:/config/config.json:ro
+      - ./data:/data
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    logging:
+      driver: json-file
+      options:
+        max-size: 5m
+        max-file: "2"
