@@ -4,6 +4,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 WORKDIR /app
 COPY pyproject.toml /app/
 COPY requirements.lock /app/
+COPY LICENSE /app/
 COPY iptv_lan /app/iptv_lan
 RUN pip install --no-cache-dir -r requirements.lock && pip install --no-cache-dir --no-deps .
 ENV PYTHONUNBUFFERED=1

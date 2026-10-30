@@ -88,6 +88,8 @@ docker compose logs --tail 50
 
 ## 播放器与原 xTeVe 链接
 
+首次接入请看 [终端使用指南：Apple TV、Jellyfin、Kodi、VLC](docs/clients.md)。**M3U 管频道与播放地址，XMLTV 管节目单**；两者通常需分别填写。使用 URL 订阅，避免只导入一次静态文件。
+
 | 用途 | 路径 |
 | --- | --- |
 | 页面 | `/` 或 `/web/` |
