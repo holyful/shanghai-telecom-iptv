@@ -58,7 +58,7 @@ tcpdump -D
 umask 077
 mkdir -p /root/iptv-private
 timeout 120 tcpdump -i YOUR_CAPTURE_INTERFACE -s 0 -U -c 10000 \
-  -w /root/iptv-private/bootstrap.pcap 'ether host 02:00:00:00:00:01'
+  -w - 'ether host 02:00:00:00:00:01' > /root/iptv-private/bootstrap.pcap
 ```
 
 首页和正常直播出现后可提前按 `Ctrl+C`。超时退出不代表抓包失败，检查实际数据。不要等机顶盒已经登录后才开始，否则经常只剩视频包。
@@ -67,8 +67,10 @@ timeout 120 tcpdump -i YOUR_CAPTURE_INTERFACE -s 0 -U -c 10000 \
 
 ```bash
 tcpdump -i YOUR_CAPTURE_INTERFACE -s 0 -U -c 10000 \
-  -w /root/iptv-private/bootstrap.pcap 'ether host 02:00:00:00:00:01'
+  -w - 'ether host 02:00:00:00:00:01' > /root/iptv-private/bootstrap.pcap
 ```
+
+这两段命令在设备的 root 管理 shell 中运行，沿用前面的 `umask 077` 和目录准备。`-w -` 输出由 shell 重定向到私有文件，避免某些 tcpdump 构建降权后无法直接打开 root 目录；不要省略 `>` 重定向让二进制抓包输出到终端。不需要禁用 tcpdump 自身的降权机制。
 
 不要改成 `-i any` 后照搬以太网 MAC 过滤，Linux cooked capture 的链路类型可能不同。镜像方案也可直接在电脑 Wireshark 中选接收镜像的有线网卡，设置捕获过滤器 `ether host 02:00:00:00:00:01`，按同样开机顺序抓取并及时停止。
 

@@ -58,7 +58,8 @@ Files: compose.yaml, README.md, docs/configuration.md, docs/udpxy.md, docs/netwo
 - [x] Document prebuilt-image Compose, separate compose.build.yaml and environment settings; no new Docker management UI.
 - [x] Verify udpxy flags/UCI names against upstream sources; document source/bind interfaces, LAN access, health versus actual stream and bounded diagnostics.
 - [x] Add and run real-container env-only/persistent-schedule/health-check smoke tests and CI integration.
-- [ ] Review diff, scan public content/history, create PR, then release/deploy only after required checks and applicable approval.
+- [x] Review diff, scan public content/history and create PR; unit, browser, container and authorized-line candidate checks passed.
+- [ ] Merge, release and deploy after required CI checks; the user approved this sequence.
 
 ### 4. HTTP Subscription Links
 
