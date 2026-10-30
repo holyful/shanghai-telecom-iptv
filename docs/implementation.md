@@ -13,7 +13,7 @@ transport. The UI browses real channels and programmes, refresh status and histo
 - [x] UI: responsive channel list, guide, logs and manual refresh.
 - [x] Staging live refresh, desktop/mobile UI checks and stream test.
 - [x] Backup and cutover; legacy endpoint and Jellyfin verification, rollback.
-- [ ] Public README, configuration and account-discovery guide; secret scan of
+- [x] Public README, configuration and account-discovery guide; secret scan of
       all committed files/history before creating/pushing public GitHub repo.
 
 Tests use synthetic identities and example addresses only. No household evidence
