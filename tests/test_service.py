@@ -89,6 +89,26 @@ class ServiceTests(unittest.TestCase):
             self.assertEqual(again.settings['refresh_time'], '06:15')
             self.assertFalse(again.settings['auto_refresh'])
 
+    def test_environment_schedule_wins_over_saved_settings(self):
+        with tempfile.TemporaryDirectory() as d:
+            service = Service({'data_dir': d})
+            service.update_settings({'refresh_time': '07:00', 'auto_refresh': True})
+            again = Service({'data_dir': d, 'refresh_time': '06:30', 'auto_refresh': False,
+                             '_environment_settings': ['refresh_time', 'auto_refresh']})
+            self.assertEqual(again.settings, {'refresh_time': '06:30', 'auto_refresh': False})
+            self.assertEqual(again.status()['managed_settings'], ['auto_refresh', 'refresh_time'])
+            with self.assertRaises(ValueError):
+                again.update_settings({'refresh_time': '08:00', 'auto_refresh': False})
+            self.assertEqual(again.settings['refresh_time'], '06:30')
+
+    def test_only_explicit_environment_schedule_fields_are_locked(self):
+        with tempfile.TemporaryDirectory() as d:
+            service = Service({'data_dir': d, 'auto_refresh': False, '_environment_settings': ['auto_refresh']})
+            service.update_settings({'refresh_time': '06:15', 'auto_refresh': False})
+            self.assertEqual(service.settings['refresh_time'], '06:15')
+            with self.assertRaises(ValueError):
+                service.update_settings({'refresh_time': '06:15', 'auto_refresh': True})
+
 
 if __name__ == '__main__':
     unittest.main()

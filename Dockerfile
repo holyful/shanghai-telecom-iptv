@@ -8,5 +8,5 @@ COPY LICENSE /app/
 COPY iptv_lan /app/iptv_lan
 RUN pip install --no-cache-dir -r requirements.lock && pip install --no-cache-dir --no-deps .
 ENV PYTHONUNBUFFERED=1
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s CMD python -c "import json,urllib.request; c=json.load(open('/config/config.json')); urllib.request.urlopen('http://'+c['bind_address']+':'+str(c.get('port',34400))+'/health',timeout=3)" || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s CMD ["python", "-m", "iptv_lan.healthcheck"]
 CMD ["python", "-m", "iptv_lan.server"]
