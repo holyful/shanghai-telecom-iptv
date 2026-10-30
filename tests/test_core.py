@@ -49,6 +49,33 @@ class SnapshotTests(unittest.TestCase):
         self.assertNotIn('SENSITIVE', json.dumps(public))
         self.assertEqual(public[0]['current']['title'], 'News & Weather')
 
+    def test_default_exports_match_pre_grouping_byte_baseline(self):
+        data = fixture()
+        data['channels'] = [
+            dict(data['channels'][0], id='2', name='CCTV-2 HD', group='\u592e\u89c6'),
+            dict(data['channels'][0], name='\u65b0\u95fb & "HD"', group='\u5730\u65b9'),
+        ]
+        data['programmes']['1'][0]['title'] = 'News & <Weather>'
+        legacy = {'2': {'epg_id': 'x-ID.7', 'number': '1007', 'stream_id': 'oldhash'}}
+        # Captured from commit 7f9022d, before the optional Jellyfin exporter.
+        m3u = (
+            '#EXTM3U x-tvg-url="http://example.test:34400/xmltv/xteve.xml"\n'
+            '#EXTINF:-1 tvg-id="x-ID.7" tvg-name="CCTV-2 HD" tvg-chno="1007" group-title="\u592e\u89c6",CCTV-2 HD\n'
+            'http://example.test:34400/stream/oldhash\n'
+            '#EXTINF:-1 tvg-id="shct.1" tvg-name="\u65b0\u95fb & \'HD\'" tvg-chno="1" group-title="\u5730\u65b9",\u65b0\u95fb & \'HD\'\n'
+            'http://example.test:34400/stream/shct-1\n'
+        )
+        xml = (
+            "<?xml version='1.0' encoding='utf-8'?>\n"
+            '<tv generator-info-name="HomeCast Shanghai Telecom">'
+            '<channel id="x-ID.7"><display-name lang="zh">CCTV-2 HD</display-name></channel>'
+            '<channel id="shct.1"><display-name lang="zh">\u65b0\u95fb &amp; "HD"</display-name></channel>'
+            '<programme channel="shct.1" start="20270115160000 +0800" stop="20270115170000 +0800">'
+            '<title lang="zh">News &amp; &lt;Weather&gt;</title></programme></tv>'
+        )
+        self.assertEqual(core.make_m3u(data, 'http://example.test:34400', legacy), m3u.encode())
+        self.assertEqual(core.make_xmltv(data, legacy), xml.encode())
+
     def test_next_refresh_uses_shanghai_day(self):
         from datetime import datetime
         from zoneinfo import ZoneInfo

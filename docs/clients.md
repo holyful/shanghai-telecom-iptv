@@ -58,6 +58,8 @@ XMLTV: http://192.0.2.1:34400/xmltv/jellyfin.xml
 
 它保留全部频道，名称显示为 `[央视] CCTV-1` 等，按央视、卫视、专题、地方与其他排序，并生成从1开始的连续频道编号；未知分组也保留在末尾。Jellyfin 中选择按频道编号排序即可连续浏览各组。这是名称和排序，不是新增可折叠分组控件。官方频道增减时连续编号可能调整，但 `tvg-id`、节目映射和视频地址保持不变。专用 XMLTV 同步使用带前缀的名称，避免名称来源不一致。原 `/m3u/xteve.m3u`、`/xmltv/xteve.xml` 的名称、编号和顺序不受影响，Apple TV 等现有客户端无需改订阅。
 
+**已有 Jellyfin 的迁移提醒：** `tvg-id` 不等于 Jellyfin 内部频道 ID。Jellyfin 的内部身份包含播放列表 URL 的哈希，因此切换到专用 M3U 地址会重新生成频道身份。切换前备份配置，并记录频道收藏和录制/系列录制计划，刷新后复核或重建其绑定。媒体库目录和用户可见权限无需改动。[Jellyfin 频道身份实现](https://github.com/jellyfin/jellyfin/blob/v10.11.0/src/Jellyfin.LiveTv/TunerHosts/M3UTunerHost.cs#L57-L66)
+
 Jellyfin 的配置分两步，M3U 和 XMLTV 不能互相替代：
 
 1. 管理控制台 → 直播电视 → 添加调谐器，选择 **M3U Tuner**。
