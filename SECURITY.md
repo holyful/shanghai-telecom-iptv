@@ -13,8 +13,13 @@ containers can reach host interfaces, so avoid running untrusted modifications.
 
 Treat subscriber IDs, protocol SN, MAC, cookies, authentication responses and
 captures as secrets. Never include them in public issues, pull requests,
-screenshots or CI variables. Local `config.json` and `data/` are excluded from Git
-and the Docker build context, but maintainers must still inspect every release.
+screenshots or CI variables. Deploy from a private directory: a filled-in
+`compose.yaml` contains credentials and must never be committed over the public
+example. Environment variables are visible to Docker administrators via inspect
+and are not encrypted secret storage.
+Never publish `docker compose config` output from a real deployment. Keep secrets
+out of image build arguments and layers. The image copies only application files;
+maintainers must still inspect every release and its reachable Git history.
 
 Do not submit exploit details or credentials in a public issue. Use GitHub's
 private vulnerability reporting when enabled; otherwise first open a minimal

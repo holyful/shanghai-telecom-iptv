@@ -1,0 +1,10 @@
+# Optional source build only; requires a full source checkout.
+# docker compose -f compose.yaml -f compose.build.yaml up -d --build --pull never
+# Runtime settings and the single data volume stay in compose.yaml.
+services:
+  homecast:
+    image: homecast-shanghai:local
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: Dockerfile
