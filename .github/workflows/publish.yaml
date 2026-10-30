@@ -40,6 +40,12 @@ jobs:
           assert (p/'static/vendor/lucide.LICENSE').is_file();
           assert (p/'static/assets/homecast.png').is_file();
           assert Path('/app/LICENSE').is_file()"
+      - name: Verify environment configuration and persistent schedule
+        run: python tests/docker_smoke.py homecast-test
+      - name: Validate prebuilt and source-build Compose definitions
+        run: |
+          docker compose config --quiet
+          docker compose -f compose.yaml -f compose.build.yaml config --quiet
 
   publish:
     if: github.event_name != 'pull_request' && github.repository == 'holyful/shanghai-telecom-iptv'
