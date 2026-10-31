@@ -4,7 +4,7 @@
 HomeCast 自动更新频道和节目单，提供固定的订阅链接。
 
 **仅适用于已开通 IPTV 的上海电信用户。**
-需要自己的电信机顶盒账号，不提供公共电视源。
+使用自己的 IPTV 账号，不提供公共电视源。
 
 ## 部署前置条件
 
@@ -20,8 +20,8 @@ HomeCast 自动更新频道和节目单，提供固定的订阅链接。
 | IPTV 账号、SN、MAC | 不知道账号很正常，按 [账号获取教程](docs/account-discovery.md) 操作 |
 | udpxy | 它负责转发电视画面，需要单独安装。见 [udpxy 设置](docs/udpxy.md) |
 
-基本接线：**光猫 → 软路由 → 电信机顶盒**。
-机顶盒不必直插光猫。Apple TV、手机和 NAS 接普通家庭网络。
+日常接线：**光猫 → 软路由（HomeCast + udpxy）→ 家庭播放器**。
+Apple TV、手机和 Jellyfin 接普通家庭网络。
 
 VLAN 配置参考 [aRAY 的教程](https://aray.cn/14234) 和 [双 VLAN 合桥实例](https://yanjiong.wang/articles/shanghai-telecom-and-asuswrt-merlin-support-iptv)。
 本文按光猫提供带标签的 51/85 配置。已有可用网络不用重配。
