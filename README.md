@@ -101,6 +101,16 @@ docker compose up -d --no-build homecast
 
 ![HomeCast 频道与节目单页面](docs/images/homecast-desktop.png)
 
+Jellyfin 实际播放东方卫视高清：
+
+![Jellyfin 播放东方卫视高清](docs/images/jellyfin-dragon-tv.jpg)
+
+Jellyfin 电视指南：
+
+![Jellyfin 电视指南](docs/images/jellyfin-tv-guide.jpg)
+
+截图仅展示使用效果，电视节目和标识的版权归各自权利人所有。
+
 ## 使用提醒
 
 仅在可信家庭网络内使用。不要把 HomeCast 或 udpxy 开放到公网。
