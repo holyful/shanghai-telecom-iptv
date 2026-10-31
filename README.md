@@ -12,13 +12,21 @@
 | --- | --- |
 | 已开通的上海电信 IPTV 线路 | 自己的机顶盒在计划使用的链路上正常播放 |
 | 自己机顶盒的协议身份 | 已取得 UserID、协议 SN、MAC，见 [账号发现](docs/account-discovery.md) |
-| Linux amd64 软路由和 IPTV 接口 | 推荐并已验证 x86 Linux 软路由；接口有 IPTV IPv4，能访问运营商认证/节目单服务 |
+| Linux amd64 软路由和已配置的 IPTV 桥/接口 | 先完成光猫业务承接、VLAN 与 DHCP；接口有 IPTV IPv4，能访问认证/节目单服务，见 [软路由桥接步骤](docs/network.md#软路由的-iptv-桥怎么准备) |
 | 可用的组播链路与路由 | udpxy 能从指定 IPTV 接口接收频道，不只是普通互联网可达，见 [网络条件](docs/network.md) |
 | 独立运行的 udpxy | 已完成 [udpxy 设置与检查](docs/udpxy.md)，LAN HTTP 端口可访问 |
 | Docker Engine 与 Compose 插件 | Linux 部署主机能运行 `docker compose version`，支持 host 网络 |
 | 可信 LAN 内的客户端 | 播放器或 Jellyfin 服务端能直接访问 HomeCast 和 udpxy；不对公网开放 |
 
 **只有互联网接入的普通 NAS、PC、VPS 不能使用。** 其他具备同等 IPTV 网络条件的 Linux 主机理论上可行，但未验证。macOS / Windows 可用于编辑文件；Docker Desktop 的虚拟网络不能替代上述 IPTV 接口。
+
+### 先接通软路由的 IPTV 网络
+
+这一步是安装前置条件，不是容器参数。基本链路为 **光猫的 IPTV 业务口 -> 软路由 IPTV 桥/接口 -> 机顶盒**；HomeCast 和外部 udpxy 使用软路由上的 IPTV 网络，家庭播放器仍接普通 LAN。机顶盒不必直接插光猫。
+
+**本文采用 VLAN 51 和 VLAN 85 都配置的上海电信方案，不要求先判断哪个负责哪种业务。** 软路由在连接光猫及机顶盒链路的网口上创建这两个 VLAN 子接口，接入专用 IPTV 桥，再用 DHCP 客户端取得 IPTV 地址；中间经过管理型交换机时，上联和机顶盒链路也须放行这两个 VLAN。只安装容器、只接通普通 LAN，不能代替这一步。
+
+具体端口与 LuCI 操作顺序见 [软路由桥接步骤](docs/network.md#软路由的-iptv-桥怎么准备)。参考原文：[aRAY 的 OpenWrt/交换机教程（2022）](https://aray.cn/14234)、[王延炯的双 VLAN 合桥实例（2022）](https://yanjiong.wang/articles/shanghai-telecom-and-asuswrt-merlin-support-iptv)。本方案以光猫交付带标签的 51/85 为前提；已去标签或已做其他映射的链路先核对，不要照抄网口名，更不要把整个 WAN 和家庭 LAN 直接桥接。
 
 ## 工作方式
 
@@ -86,7 +94,7 @@ docker compose logs --tail 50 homecast
 
 | 文档 | 内容 |
 | --- | --- |
-| [网络条件](docs/network.md) | IPTV 接口、组播、主机选择与客户端可达性 |
+| [网络条件](docs/network.md) | VLAN 51/85 双配置、软路由 IPTV 桥、交换机与验证步骤 |
 | [账号发现](docs/account-discovery.md) | 从自己的已授权设备取得协议身份 |
 | [外部 udpxy](docs/udpxy.md) | 初次配置、只读诊断与限时播放检查 |
 | [配置与维护](docs/configuration.md) | 环境变量、调度、数据备份与升级 |
