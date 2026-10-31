@@ -8,14 +8,17 @@
 发布镜像只支持这个架构。
 其他 Linux 主机需具备同样的 IPTV 网络条件，目前未验证。
 
-只有普通互联网接入的 NAS、PC、VPS 不够。
+这些要求针对部署 HomeCast 的主机。
+只有普通互联网接入的 NAS、PC、VPS，不能直接作为部署主机。
+电脑、手机等播放设备接普通家庭网络即可。
+它们只需能访问 HomeCast 和 udpxy。
 
 ## 日常使用的接线
 
 ```mermaid
 flowchart LR
   ONT[光猫 IPTV 下行口] --> ROUTER[软路由: HomeCast + udpxy]
-  ROUTER -->|家庭网络| CLIENT[Apple TV / 手机 / Jellyfin]
+  ROUTER -->|家庭网络| CLIENT[电脑 / 手机 / 电视 / Apple TV]
 ```
 
 HomeCast 获取频道和节目单，udpxy 转发电视画面。

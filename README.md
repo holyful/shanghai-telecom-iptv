@@ -1,6 +1,9 @@
 # HomeCast · 上海电信 IPTV
 
-把家里的上海电信 IPTV 接到 Apple TV、手机或 Jellyfin。
+**不用电信机顶盒，在自己的家庭网络里观看 IPTV。**
+
+配置好后，可以用电脑、手机、平板、电视或 Apple TV 观看。
+使用兼容的 IPTV 播放器，也可以通过 Jellyfin 接入。
 HomeCast 自动更新频道和节目单，提供固定的订阅链接。
 
 **仅适用于已开通 IPTV 的上海电信用户。**
@@ -21,13 +24,15 @@ HomeCast 自动更新频道和节目单，提供固定的订阅链接。
 | udpxy | 它负责转发电视画面，需要单独安装。见 [udpxy 设置](docs/udpxy.md) |
 
 日常接线：**光猫 → 软路由（HomeCast + udpxy）→ 家庭播放器**。
-Apple TV、手机和 Jellyfin 接普通家庭网络。
+电脑、手机、电视等播放设备接普通家庭网络。
 
 VLAN 配置参考 [aRAY 的教程](https://aray.cn/14234) 和 [双 VLAN 合桥实例](https://yanjiong.wang/articles/shanghai-telecom-and-asuswrt-merlin-support-iptv)。
 本文按光猫提供带标签的 51/85 配置。已有可用网络不用重配。
 
-只有普通上网连接的 NAS、电脑或云服务器不能直接使用。
-其他主机部署未验证，详见 [网络说明](docs/network.md)。
+上面的网络要求针对 **部署 HomeCast 的主机**。
+只接普通网络的 NAS、电脑或云服务器，不能直接当部署主机。
+用来观看的设备只需能访问家里的 HomeCast 和 udpxy。
+其他部署方式未验证，详见 [网络说明](docs/network.md)。
 
 ## 快速开始
 
