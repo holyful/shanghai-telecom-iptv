@@ -1,61 +1,58 @@
-# 网络前置条件
+# 先接通 IPTV 网络
 
-**这一页属于部署前置条件，先于 Docker 安装。** HomeCast 只消费已经接通的上海电信 IPTV 网络，不配置光猫、VLAN、DHCP、路由或防火墙。先确认光猫实际交付的业务和标签，不应照抄其他家庭的网口、地址或路由。
+先把网络接好，再安装 HomeCast。HomeCast 不会替你配置光猫或路由器。
 
-## VLAN 51 和 85 都配置
+**已有接口能认证、udpxy 能播放，就沿用现有配置。** 不需要按本页重新建网。
 
-本文采用上海电信常见的 **VLAN 51 + VLAN 85 双配置**，不需要先判断哪个负责组播、点播或认证。光猫到软路由、软路由到机顶盒的 IPTV 链路都保留这两个 VLAN；软路由通过专用 IPTV 桥接入这条业务网络。
+推荐使用 **64 位 x86（amd64）Linux 软路由**。
+发布镜像只支持这个架构。
+其他 Linux 主机需具备同样的 IPTV 网络条件，目前未验证。
 
-前提是光猫下行确实交付对应的 tagged 业务。已去标签的专用 IPTV 口、已完成其他映射的现成网络不能机械套用；已有可用接口直接沿用。这里不是要求修改运营商配置，也不是所有上海线路永久统一的保证。光猫输出存在差异的历史实测见 [u128393（2019）](https://www.cnblogs.com/u128393/p/11629969.html)。
+只有普通互联网接入的 NAS、PC、VPS 不够。
 
-## 最简单的布置
-
-```mermaid
-flowchart LR
-  ONT[电信光猫可用下行口] --> ROUTER[软路由]
-  ROUTER -->|IPTV 桥或接口| STB[机顶盒]
-  ROUTER -->|普通家庭 LAN| CLIENT[电视 / Apple TV / NAS]
-  ROUTER --- APP[HomeCast 容器 / host 网络]
-  ROUTER --- UDP[独立 udpxy 服务]
-  CLIENT -->|频道与节目单| APP
-  CLIENT -->|302 后直接接收视频| UDP
-```
-
-条件：该下行口确实提供 IPTV；软路由已正确分离/承接 IPTV 业务，机顶盒能通过对应端口正常获取网络并播放。光猫不是普遍只有一个固定 IPTV 口：有的所有下行口都可用，有的只绑定部分端口。
-
-## 什么时候需要管理型交换机
+## 先看接线
 
 ```mermaid
 flowchart LR
-  ONT[光猫共享带标签上联] --> SW[支持 802.1Q 的交换机]
-  SW -->|按需 tagged 或 untagged| IPTV[软路由 IPTV 接口]
-  SW -->|正确 PVID 的机顶盒端口| STB[机顶盒]
-  SW -->|独立业务 VLAN| WAN[软路由 Internet 接口]
-  IPTV --- APP[HomeCast 容器 / 认证和节目单]
-  IPTV --- UDP[独立 udpxy / 组播转 HTTP]
+  ONT[光猫 IPTV 下行口] --> ROUTER[软路由]
+  ROUTER -->|IPTV 链路| STB[机顶盒]
+  ROUTER -->|家庭 LAN| CLIENT[Apple TV / Jellyfin]
+  ROUTER --- APP[HomeCast 容器]
+  ROUTER --- UDP[独立 udpxy]
+  CLIENT -->|频道和节目单| APP
+  CLIENT -->|视频| UDP
 ```
 
-仅当需要在交换机上划分业务、添加/移除 VLAN 标签或设置 PVID 时使用这种结构。如果软路由能直接处理共享上联，就不必额外加交换机。
-
-普通非管理交换机可以接在已能正常使用的 IPTV 口后面，再接机顶盒。它通常不会替你拆 VLAN，也没有端口镜像功能；某些设备不透明转发带标签帧，因此不能假定所有型号都适用。
+先确认机顶盒能在这条链路上播放。光猫哪个口提供 IPTV，以自己家的配置为准。
 
 ## 软路由的 IPTV 桥怎么准备
 
-以下以 OpenWrt / iStoreOS 的 LuCI 思路说明，界面名称随版本变化。**这是首次建网指南，不是对已有可用家庭网络执行的迁移脚本。** 已能认证和播放就沿用现有接口。变更前私下备份网络、DHCP、防火墙配置，保留本地管理口与恢复方式，在维护时间操作，不要远程盲目重启全家网络。
+下面以 64 位 x86 OpenWrt / iStoreOS 为例。界面名称可能略有不同。
 
-### 1. 先认清端口与光猫输出
+**本例同时配置 VLAN 51 和 85，再合到一个 `br-iptv` 桥。**
 
-记录哪个物理口连光猫、哪个口连机顶盒或 IPTV 交换机，确认该链路可承载 tagged 51/85。只使用实际确认的端口；`eth0`、`eth1`、`lan4` 等名字不是通用值。不要删除现有 Internet WAN，也不要把整个 WAN 和普通 `br-lan` 直接桥接。
+前提是光猫输出带标签的 51 和 85，也就是 tagged 51/85。若光猫已经去标签或做了其他映射，不要直接套用。不确定时先请装维确认。
 
-机顶盒能在光猫口工作，但移到软路由后不工作，优先检查这一步。光猫管理权限拿不到时，可请装维确认业务绑定及输出方式，不需要修改光猫密码、刷机或猜测运营商侧 VLAN。
+变更前备份网络、DHCP、防火墙配置。保留本地管理口和恢复办法，安排在家里不用网络时操作。
 
-### 2. 两个 VLAN 子接口都建，再接入 IPTV 桥
+### 1. 确认两个网口
 
-下面是独立网卡的 x86 OpenWrt / iStoreOS 示例。假设 `eth0` 连光猫、`eth1` 连机顶盒链路，**先替换成自己的实际设备名**。DSA 或 swconfig 设备需按对应固件的交换机/桥 VLAN 页面配置，不能把这组名称原样照抄。
+| 本例设备名 | 接到哪里 |
+| --- | --- |
+| `eth0` | 光猫 |
+| `eth1` | 机顶盒，或通往机顶盒的交换机 |
 
-1. 在“网络 -> 接口 -> 设备”添加 802.1Q VLAN 设备：基于 `eth0` 分别创建 VLAN ID `51` 和 `85`，得到 `eth0.51`、`eth0.85`。
-2. 对下联设备 `eth1` 同样创建 `eth1.51`、`eth1.85`。
-3. 新增桥设备 `br-iptv`，成员选择上述四个 **VLAN 子接口**，不要选完整物理 WAN、普通 `br-lan` 或 Wi-Fi。
+这些名字只是示例，先换成自己的实际设备名。
+
+不要删除现有 Internet WAN。**不要把整个 WAN 和家庭 `br-lan` 直接合桥。**
+
+### 2. 创建两个 VLAN，再合桥
+
+在“网络 -> 接口 -> 设备”中操作：
+
+1. 添加 802.1Q VLAN 设备。在 `eth0` 上分别建 51 和 85，得到 `eth0.51`、`eth0.85`。
+2. 在 `eth1` 上同样建 51 和 85，得到 `eth1.51`、`eth1.85`。
+3. 新建桥设备 `br-iptv`，只加入这四个 VLAN 子接口。
 
 ```text
 光猫侧 eth0.51 ----+                 +---- eth1.51 机顶盒侧
@@ -63,33 +60,111 @@ flowchart LR
 光猫侧 eth0.85 ----+        |        +---- eth1.85 机顶盒侧
                            |
                    iptv（DHCP 客户端）
-                           |
-                   HomeCast + 外部 udpxy
 ```
 
-这是将两条 IPTV 承载接入同一业务桥的兼容结构，**不是让 51 和 85 继续相互隔离**；若上下游已有另一条映射/桥接路径，不要再叠加形成二层环路。此合桥结构可参考 [王延炯（2022）的原文](https://yanjiong.wang/articles/shanghai-telecom-and-asuswrt-merlin-support-iptv)，但原文的梅林命令不能直接在 OpenWrt 执行。仅桥接给机顶盒还不够，本机 HomeCast/udpxy 需要下一步的 DHCP 接口。
+**检查结果：** `br-iptv` 中有这四个成员，没有完整物理 WAN、`br-lan` 或 Wi-Fi。
 
-经过管理型交换机时，创建 VLAN `51` 和 `85`，将连接软路由的上联口、通往机顶盒的下联/中继端口都加入两个 VLAN，按本方案保留 tagged。**上联口不能漏配。** 普通 LAN 的 untagged/PVID 保持原设计，不能把一个 PVID 当作同时配置两个 VLAN。机顶盒需要普通 LAN 的 A 面引导时也须保留该路径。交换机参考 [aRAY（2022）的原文及作者补充](https://aray.cn/14234)。如果终端实际要求 untagged，则先确认出口适配，不能套用 tagged 端口表。
+这个例子把 51 和 85 合在一起，不再隔离。若已有另一条映射或桥接路径，不要再叠加，避免网络环路。
 
-### 3. 让软路由本机获得 IPTV 网络
+合桥思路见 [王延炯的原文](https://yanjiong.wang/articles/shanghai-telecom-and-asuswrt-merlin-support-iptv)。原文使用梅林固件，命令不能直接在 OpenWrt 执行。
 
-在“网络 -> 接口”新增逻辑接口 `iptv`，协议选 **DHCP 客户端**，设备选上一步实际承接业务的设备，例如 `br-iptv`。不要在 IPTV 业务网启用家庭 DHCP **服务器**，也不要把家庭 LAN 地址手工填进去。
+如果设备使用 DSA 或 swconfig，需在对应的交换机或桥 VLAN 页面设置。不要原样照抄上面的设备名。
 
-检查获取到的地址、网关与路由；不要硬编码别家的租约地址。IPTV 默认路由不能抢走正常 Internet 出口：按实际环境使用更低优先级的默认路由（更大的 metric），或经已确认的运营商网关配置所需的专用路由。**不能只取消默认路由而不补足到认证/EPG 服务的路由。** 不要让运营商 DNS 无意替换全家的 DNS 策略。对应 DHCP 与路由选项见 [OpenWrt LuCI 接口实现](https://github.com/openwrt/luci/blob/master/modules/luci-mod-network/htdocs/luci-static/resources/view/network/interfaces.js)；这不是要求修改源码。
+### 3. 有交换机时，检查沿途端口
 
-### 4. 分清机顶盒引导与应用联网
+没有交换机可跳过这一步。
 
-部分上海电信机顶盒需要普通 LAN 的 DHCP Option 125 等引导，才能转入 IPTV 专网；这是原机顶盒的网络发现问题，不是 `HOMECAST_USER_ID` 的替代品。[aRAY 教程](https://aray.cn/14234) 有该场景的实例。不同设备、固件、光猫交付方式可能不同，参数应来自自己的线路，仅应用到需要的机顶盒范围，不要把旧文章十六进制串直接强加给全家所有客户端。
+需要添加或去除 VLAN 标签时，才需要管理型交换机。普通交换机不能替你拆分 VLAN，也不能保证透明传递标签。
 
-防火墙把 IPTV 与家庭管理网络分开，仅按实际需要允许 DHCP 应答、IGMP、直播组播及认证/EPG 回包。不要照搬旧教程的所有方向 ACCEPT，不需要把 HomeCast/udpxy 开放到 WAN。组播服务正常时也不要为了照教程再开启第二套 IGMP proxy；桥的 snooping、查询器和卸载须与实际拓扑配合，不能把全局开关当万能修复。
+在承载这条 IPTV 链路的管理型交换机上：
 
-### 5. 最后接入 HomeCast 与 udpxy
+1. 创建 VLAN 51 和 85。
+2. 将沿途上联、下联和中继端口都加入这两个 VLAN。本例设为 tagged，界面通常标为 `T`。
+3. 保持原有普通 LAN 的 untagged / PVID 设置。一个 PVID 不能代替两个 VLAN。
 
-先完成下面的验证，再将实际 IPTV 设备名填入 `HOMECAST_INTERFACE`，并独立配置 udpxy 的 `source`。逻辑接口名 `iptv` 与 Linux 设备名 `br-iptv` 不是同一回事；HomeCast 要的是后者。若单播和组播仍在不同设备上，必须先验证两条链路及 udpxy 的来源配置，不能只修改一个环境变量便认为问题解决。具体配置见 [外部 udpxy](udpxy.md)。
+**检查结果：** 51 和 85 的端口表都包含连接软路由的上联口，不能只勾机顶盒端口。
 
-## 只读检查桥与接口
+如果机顶盒出口要求 untagged，先确认如何去标签，不能套用本例的端口表。
 
-以下在软路由 SSH 中执行，macOS/Linux 终端和 Windows PowerShell 都可以用 SSH 进入。替换自己实际使用的接口名：
+参考 [aRAY 原文及作者补充](https://aray.cn/14234)。其中也提醒了上联口需要加入 VLAN。
+
+### 4. 让软路由自己获取 IPTV 地址
+
+在“网络 -> 接口”新增接口：
+
+| 项目 | 填写 |
+| --- | --- |
+| 名称 | `iptv` |
+| 协议 | **DHCP 客户端** |
+| 设备 | `br-iptv`，或自己的实际 IPTV 设备 |
+
+这里是向运营商获取地址的 **DHCP 客户端**。不要在 IPTV 网络上启用家庭 DHCP 服务器，也不要手填家庭 LAN 地址。
+
+**检查结果：** `iptv` 获得 IPv4 地址，家里的普通上网仍正常。
+
+IPTV 路由不能抢走普通上网出口，也不能缺少到认证、节目单服务的路由。有冲突时看下方的进阶说明，不要直接关闭所有默认路由。
+
+### 5. 填入 HomeCast 和 udpxy
+
+HomeCast 的 `HOMECAST_INTERFACE` 填实际设备名，例如 `br-iptv`，不是逻辑接口名 `iptv`。
+
+udpxy 独立设置自己的来源接口 `source`。两处不会自动同步，见 [udpxy 设置](udpxy.md)。
+
+如果认证和组播使用不同设备，分别验证后再填写。
+
+## 完成后检查
+
+1. 原机顶盒能正常播放。
+2. HomeCast 使用的 IPTV 接口有 IPv4，能完成认证并取得节目单。
+3. udpxy 能播放频道，不只是状态页能打开。
+4. 播放器或 Jellyfin 服务端能直接访问 HomeCast 和 udpxy。
+5. HomeCast 只允许可信 LAN 网段，两项服务都没有开放到公网。
+
+HomeCast 容器使用 Linux host 网络，才能访问宿主机的 IPTV 接口。沿用项目 Compose 即可，不需要 `privileged` 或 Docker socket。
+
+监听地址、订阅地址和视频地址的区别见 [三个地址](configuration.md#三个地址)。
+
+## 需要排查时再看
+
+<details>
+<summary>路由、DNS、机顶盒引导和防火墙</summary>
+
+### 路由和 DNS
+
+不要复制别人的 IPTV 地址或网关。
+
+若 IPTV 和 Internet 都取得默认路由，可把 IPTV 的 metric 设得更大，让它优先级更低。也可以按已确认的运营商网关设置专用路由。
+
+不能只取消 IPTV 默认路由，却不保留到认证和节目单服务的路径。
+
+不要让 IPTV 下发的 DNS 意外覆盖家庭 DNS。相关选项见 [OpenWrt LuCI 接口实现](https://github.com/openwrt/luci/blob/master/modules/luci-mod-network/htdocs/luci-static/resources/view/network/interfaces.js)，无需修改源码。
+
+### 机顶盒启动卡住
+
+部分机顶盒启动时还需要普通 LAN，以及 DHCP Option 125 引导。原有这条路径要保留。
+
+这不是 HomeCast 账号，不能代替 `HOMECAST_USER_ID`。参数要来自自己的线路，只应用到需要的机顶盒。
+
+[aRAY 原文](https://aray.cn/14234) 有相关例子，不要把文章里的十六进制参数直接加给全家设备。
+
+### 防火墙和组播
+
+IPTV 网络应与家庭管理网络分开。
+
+按实际需要允许 DHCP 应答、IGMP、直播组播和认证/节目单回包。不要把防火墙所有方向都改成 ACCEPT。
+
+已有组播服务正常时，不要再启动第二套 IGMP proxy。
+
+snooping、查询器和硬件卸载要按实际网络检查。不要把全局开关当成通用修复。
+
+</details>
+
+<details>
+<summary>只读检查桥和接口</summary>
+
+用 macOS / Linux 终端或 Windows PowerShell，通过 SSH 登录软路由。
+
+换成自己的接口名后执行：
 
 ```sh
 ip -d link show
@@ -100,28 +175,25 @@ bridge link show
 bridge vlan show
 ```
 
-没有 `bridge` 工具的旧固件可以用 `brctl show` 查看桥成员；`bridge vlan show` 展示的是桥 VLAN 过滤信息，不等于全部 802.1Q 子接口，后者需结合 `ip -d link show`。本节不要求提交配置或重启服务。输出含地址、MAC 等网络信息，对外分享前脱敏。
+重点看三项：VLAN 51/85 是否存在、桥成员是否正确、IPTV 接口是否取得地址。
 
-## 验证清单
+没有 `bridge` 的旧固件，可用 `brctl show` 查看桥成员。
 
-1. 机顶盒在计划使用的链路上正常播放。
-2. Linux IPTV 接口有运营商分配的 IPv4 地址；认证请求可经该接口发出。
-3. 组播路由与链路可用，udpxy 的 `source` / `-m` 指向正确的 IPTV 接口。
-4. HomeCast 的 `HOMECAST_INTERFACE` 是 IPTV 接口，`HOMECAST_BIND_ADDRESS` 是本机 LAN 监听 IPv4，不带协议或端口。
-5. `HOMECAST_PUBLIC_URL` 是客户端使用的 HomeCast 统一地址，包含协议和端口；PUBLIC 不表示公网。
-6. `HOMECAST_UDPXY_URL` 是独立 udpxy 的 HTTP 地址。播放器或 Jellyfin 服务端须能直接访问它，不能只验证 HomeCast 到 udpxy 的连通性。
-7. HomeCast 的 `HOMECAST_ALLOWED_NETWORKS` 仅包含可信网段；HomeCast 和 udpxy 都没有 WAN 端口转发或公开反向代理。
+`bridge vlan show` 只显示桥的 VLAN 过滤信息。查看 802.1Q 子接口还要结合 `ip -d link show`。
 
-容器使用 Linux host 网络，才能选择宿主机的 IPTV 接口；只增加 `NET_RAW` 能力供接口绑定使用，不需要 `privileged`、修改路由权限或挂载 Docker socket。这里推荐并验证的是 x86 Linux 软路由。其他具备同等网络条件的 Linux 主机理论上可行，但未验证；只有普通互联网接入的 NAS、PC、VPS 不具备条件。
+这些命令不会修改配置或重启服务。输出含地址和 MAC，对外分享前请脱敏。
 
-HomeCast 和 udpxy 是两个独立部署单元：前者获取频道/EPG 并返回播放重定向，后者承接客户端的 HTTP 视频请求。更改 HomeCast 环境变量不会更改 udpxy 的监听或组播来源；HomeCast 的访问控制也不会保护 udpxy。设置方式见 [外部 udpxy](udpxy.md)，三个地址的区别见 [配置指南](configuration.md#三个地址)。
+需要查看机顶盒认证流量时，见 [账号获取教程](account-discovery.md)。普通电脑插到同一台交换机，并不代表能看到机顶盒的全部流量。
 
-抓包需要实际观察机顶盒流量：桥上的 tcpdump、支持镜像的管理型交换机，或者专用网络 TAP。把普通电脑插在普通交换机旁边，并不会自动收到机顶盒的单播认证流量。详见 [账号发现](account-discovery.md)。
+</details>
 
-## 原文参考与适用边界
+<details>
+<summary>原文参考与适用范围</summary>
 
-- [u128393：上海电信 TL-EP110 + RT-AC86U 实现观看 4K IPTV 无卡顿（2019-10-07）](https://www.cnblogs.com/u128393/p/11629969.html)：51/85 与更换光猫后的组播观察差异，含作者的映射推断和验证。
-- [aRAY：上海电信改桥接 IPTV 设置小白教程（2022-05-15）](https://aray.cn/14234)：OpenWrt 双 VLAN 透传、机顶盒引导与管理型交换机。作者在评论中补充了交换机上联口也须加入相应 VLAN。
-- [王延炯：上海电信桥接拨号与 ASUS AiMesh 支持 IPTV 机顶盒（2022-04-02）](https://yanjiong.wang/articles/shanghai-telecom-and-asuswrt-merlin-support-iptv)：另一种历史合桥实例，设备及命令平台不同。
+- [aRAY（2022）](https://aray.cn/14234)：OpenWrt 双 VLAN、交换机端口和机顶盒引导。
+- [王延炯（2022）](https://yanjiong.wang/articles/shanghai-telecom-and-asuswrt-merlin-support-iptv)：梅林固件上的双 VLAN 合桥实例。
+- [u128393（2019，可选阅读）](https://www.cnblogs.com/u128393/p/11629969.html)：更换光猫后，51/85 组播表现不同的记录。
 
-以上为作者自己的实践记录，不是电信官方规范；本文引用其经验并标明边界，不复制其完整文章、图片或部署脚本。网络已经可用时，不需要照文章重新配置。
+这些是作者的实测记录，不是电信官方规范。不同光猫、线路和固件可能不同；已有可用网络无需重做。
+
+</details>

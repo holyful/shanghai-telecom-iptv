@@ -1,147 +1,228 @@
-# 不知道 IPTV 账号？从这里开始
+# 获取 IPTV 账号
 
-**先完成这一页，再填写 Compose。** 大多数人没有手工输入过 IPTV 账号：身份已经保存在电信机顶盒中，开机自动认证。宽带拨号账号、电信 App 手机号、机身 S/N 都不能直接当作 IPTV 协议身份。
+仅用于自己已开通的上海电信 IPTV。
+先找出机顶盒登录时使用的信息，再填写 HomeCast 配置。
 
-本文只适用于自己的、已开通的上海电信 IPTV。先查机顶盒网络/业务信息页面，或联系运营商确认；拿不到完整字段时，再观察自己机顶盒的开机认证。不要抓取别人或公共网络的流量，不要将 PCAP 上传到在线解析网站。
+先查看机顶盒的网络或业务信息页，也可以询问运营商。已经拿到完整字段，可以直接看第 5 步。
 
-## 最后需要拿到什么
+**宽带账号、手机号、机身贴纸 S/N，不一定是 IPTV 登录使用的账号和协议 SN。**
 
-| 要找的字段 | 填入 Compose | 常见混淆 |
-| --- | --- | --- |
-| 登录请求中的 `UserID` | `HOMECAST_USER_ID` | 不一定是宽带账号或手机号 |
-| 同一登录请求中的 `SN` | `HOMECAST_PROTOCOL_SN` | 不一定是机身贴纸的物理 S/N |
-| 同一机顶盒的业务 MAC | `HOMECAST_MAC` | 不是电脑、软路由或光猫的 MAC |
-| 初始认证服务主机及端口 | `HOMECAST_AUTH_HOST` | 不是 HomeCast 或 udpxy 的 LAN 地址 |
-| 部署主机实际 IPTV 接口名 | `HOMECAST_INTERFACE` | 来自本机网络配置，不是账号字段 |
+下面推荐在软路由的 IPTV 桥上抓包。
 
-准备：可正常播放的机顶盒、能观察它流量的抓包位置、该设备管理权限、抓包端的 tcpdump，以及电脑上的 Wireshark。Windows、macOS、Linux 均可用 Wireshark 分析文件。**仅安装 HomeCast 或 Wireshark，不会自动拿到账号。**
+只抓自己的设备。不要公开抓包文件、登录地址、账号或 token，也不要上传到在线解析网站。
 
-## 1. 确定抓包位置
+## 1. 确认接口和机顶盒 MAC
 
-推荐选择已有的一种条件：软路由上机顶盒实际经过的 IPTV 桥/物理接口；管理型交换机的端口镜像；专用网络 TAP。不必全部购买。
+先确认这条链路能正常播放：
 
-```mermaid
-flowchart LR
-  ONT[光猫提供的 IPTV 链路] --> R[软路由 IPTV 桥]
-  R --> STB[自己的机顶盒]
-  R -. 在经过的桥或端口运行 tcpdump .-> PC[电脑用 Wireshark 分析 PCAP]
+```text
+光猫 -> 软路由 IPTV 桥 -> 自己的机顶盒
 ```
 
-或者在交换机上观察：
+接线还没通，先完成 [网络准备](network.md)。本页不改 VLAN、路由或防火墙。
 
-```mermaid
-flowchart LR
-  UP[已接通的 IPTV 链路] --> SW[管理型交换机]
-  SW -->|机顶盒端口| STB[自己的机顶盒]
-  SW -. 镜像该端口双向收发流量 .-> PC[电脑抓包网卡]
-```
+准备好软路由的 root 管理权限、路由器上的 `tcpdump`，以及电脑上的 Wireshark。
 
-机顶盒不必直插光猫，只需正确接入 IPTV。**在普通交换机旁边随便插一台电脑，通常看不到机顶盒的单播认证。** 端口镜像和 VLAN 分流是两回事，不要将镜像端口接回家庭网络形成环路。完整接线见 [网络准备](network.md)。
-
-先确认机顶盒在这条链路上可播放，记录接线。不能播放时先解决网络或业务问题。软路由硬件交换/卸载可能让 CPU 抓包看不到经过的流量；不要随意关闭全家硬件加速或重启网络，优先选择明确的观察端口或镜像。
-
-**完成标志：** 知道机顶盒接在哪个端口、应在哪个接口观察，以及实际使用的有线 MAC。贴纸可能有多个 MAC，要与机顶盒网络页面、交换机 MAC 表或 DHCP 记录核对。
-
-## 2. 抓一次完整开机认证
-
-下列命令在**抓包位置所在的 Linux 设备**执行，不是在任意 Wi-Fi 电脑上执行。用自己的接口和 MAC 替换示例；观察接口不一定等于最终的 `HOMECAST_INTERFACE`。
-
-列出抓包接口：
+用 SSH 登录软路由，查看可抓包的接口：
 
 ```bash
 tcpdump -D
 ```
 
-先保持机顶盒关闭，开始抓包后再正常接通电源。目录仅管理员可读，按 MAC 过滤，保留完整包，同时限制时间和包数：
+选择机顶盒流量实际经过的 IPTV 桥或物理接口。后文的 `YOUR_CAPTURE_INTERFACE` 要换成这个名称。
+
+在机顶盒网络页确认有线 MAC。后文的 `02:00:00:00:00:01` 也要换成它。
+
+贴纸可能有多个 MAC。可以用交换机 MAC 表或 DHCP 记录核对，不要填电脑或软路由的 MAC。
+
+**成功检查：** 机顶盒能播放，你已记下观察接口和机顶盒 MAC。
+
+## 2. 抓一次开机认证
+
+先关闭机顶盒。下面的命令在**软路由的 root 管理 shell** 中运行，不是在电脑终端本地运行。
+
+替换接口和 MAC 后执行：
 
 ```bash
 umask 077
 mkdir -p /root/iptv-private
+chmod 700 /root/iptv-private
 timeout 120 tcpdump -i YOUR_CAPTURE_INTERFACE -s 0 -U -c 10000 \
   -w - 'ether host 02:00:00:00:00:01' > /root/iptv-private/bootstrap.pcap
 ```
 
-首页和正常直播出现后可提前按 `Ctrl+C`。超时退出不代表抓包失败，检查实际数据。不要等机顶盒已经登录后才开始，否则经常只剩视频包。
+看到 `listening on` 后，再打开机顶盒。
 
-精简路由器若没有 `timeout`，用下面命令，**在首页出现或约 120 秒时手动按 Ctrl+C 停止**。包数上限不等于时间上限，不可无人值守：
+命令最多运行 120 秒，或抓取 10000 个包。哪个先达到，就先停止。
 
-```bash
-tcpdump -i YOUR_CAPTURE_INTERFACE -s 0 -U -c 10000 \
-  -w - 'ether host 02:00:00:00:00:01' > /root/iptv-private/bootstrap.pcap
-```
+超时退出不等于抓包失败。仍要检查包数和第 4 步的登录内容。
 
-这两段命令在设备的 root 管理 shell 中运行，沿用前面的 `umask 077` 和目录准备。`-w -` 输出由 shell 重定向到私有文件，避免某些 tcpdump 构建降权后无法直接打开 root 目录；不要省略 `>` 重定向让二进制抓包输出到终端。不需要禁用 tcpdump 自身的降权机制。
+出现首页并正常播放后，也可以提前按 `Ctrl+C`。不要等登录完成后才开始抓包。
 
-不要改成 `-i any` 后照搬以太网 MAC 过滤，Linux cooked capture 的链路类型可能不同。镜像方案也可直接在电脑 Wireshark 中选接收镜像的有线网卡，设置捕获过滤器 `ether host 02:00:00:00:00:01`，按同样开机顺序抓取并及时停止。
+`>` 不能省略。它让 root shell 先打开私有文件，再接收 tcpdump 输出。无需关闭 tcpdump 的降权保护。
 
-**完成标志：** 文件不是空的，有机顶盒与运营商服务器的双向 TCP 会话，不只是 UDP 视频。没有包时先查接口、MAC 和镜像方向，不要反复重启碰运气。
+提示没有 `timeout` 时，使用文末的 [备用方法](#备用方法)。
 
-## 3. 安全取回文件
+**成功检查：** 退出时的 `packets captured` 数量大于零。第 4 步还要确认其中有登录请求，不能只看包数。
 
-在电脑通过自己的 SSH 登录方式取回 PCAP，不要放进 Web 服务器目录。替换 `ROUTER_LAN_IP`；若在其他设备抓包，就用该设备地址与账号。
+## 3. 把文件取回电脑
+
+下面的命令在**电脑**上运行。将 `ROUTER_LAN_IP` 换成软路由的 LAN 地址。
 
 macOS / Linux：
 
 ```bash
+umask 077
 mkdir -p "$HOME/iptv-private"
 chmod 700 "$HOME/iptv-private"
 scp root@ROUTER_LAN_IP:/root/iptv-private/bootstrap.pcap "$HOME/iptv-private/"
 ```
 
-Windows PowerShell（已安装 OpenSSH 客户端）：
+Windows PowerShell，需要先安装 OpenSSH 客户端：
 
 ```powershell
 New-Item -ItemType Directory -Force "$HOME\iptv-private"
 scp root@ROUTER_LAN_IP:/root/iptv-private/bootstrap.pcap "$HOME\iptv-private\bootstrap.pcap"
 ```
 
-使用仅自己可访问、不共享或自动公开同步的目录。图形化 SFTP 下载也可以，不需要另开 HTTP 下载端口。
+电脑上的目录也只应让自己和管理员访问。不要放到共享目录或公开同步目录。
+
+**成功检查：** 电脑上有 `bootstrap.pcap`，Wireshark 能打开它。
 
 ## 4. 在 Wireshark 找登录字段
 
-1. 打开 PCAP，用显示过滤器 `eth.addr == 02:00:00:00:00:01`，换成自己的 MAC，确认设备正确。
-2. 查 HTTP 请求：`http.request`。本项目已验证入口包含 `4kLogAuth.do`，可进一步用 `http.request.uri contains "4kLogAuth.do"`。
-3. 选中请求，在包详情展开 **Hypertext Transfer Protocol**，查看完整 URI、查询参数和 `Host`。也可右键 **Follow / TCP Stream（追踪 TCP 流）**，选择 ASCII 或 UTF-8 查看重组请求。
-4. 在同一登录请求中找 `UserID`、`SN`。参数可能经过 URL 编码，例如 `%40` 是 `@`；使用解码后的字段，不要把整条 URL 当账号。
-5. 将请求来源与机顶盒业务/网络信息、以太网源 MAC 核对。若认证参数与有线 MAC 不一致，先查明固件的身份含义，不要猜值。
+1. 打开 `bootstrap.pcap`。
+2. 输入显示过滤器 `eth.addr == 02:00:00:00:00:01`，将 MAC 换成自己的值。确认是这台机顶盒的流量。
+3. 将过滤器改为 `http.request`，查看 HTTP 请求。
+4. 再用 `http.request.uri contains "4kLogAuth.do"` 查找已验证的登录入口。
+5. 选中请求，展开 **Hypertext Transfer Protocol**。查看 URI、查询参数和 `Host`。
+6. 从同一请求中记下 `UserID`、`SN`，以及认证主机和端口。
 
-以下是**完全虚构、不能认证的示例**：
+需要看完整请求时，右键选择 **Follow / TCP Stream（追踪 TCP 流）**，以 ASCII 或 UTF-8 查看。
+
+下面是虚构示例，不能用来认证：
 
 ```http
 GET /iptv3a/4kLogAuth.do?UserID=example%40etv2&Action=Login&SN=EXAMPLE1234 HTTP/1.1
 Host: 192.0.2.2:7001
 ```
 
-它对应 `HOMECAST_USER_ID="example@etv2"`、`HOMECAST_PROTOCOL_SN="EXAMPLE1234"`、`HOMECAST_AUTH_HOST="192.0.2.2:7001"`。**MAC 不在这段请求里，不能从 UserID 或 SN 推算**，必须另行核对。字段保留为字符串，尤其不要丢失 SN 前导零。
+`%40` 解码后是 `@`，所以上例的 UserID 是 `example@etv2`。不要把整条 URI 填成账号。
 
-非标准端口若未识别成 HTTP，先确认内容确为明文 HTTP，再用 **Analyze / Decode As（分析 / 解码为）** 将对应 TCP 端口指定为 HTTP。请求分段时使用 TCP 流重组，不要只读一个包里的零散字节。
+SN 要保留原字符串，包括前导零。不要用贴纸 S/N 替代登录请求中的 SN。
 
-找不到 `4kLogAuth.do` 时，回到全部 `http.request`，在自己的开机流内容搜索 `UserID`、`SN`、`ottauth`。这些只是已验证协议的线索，不保证所有固件相同。**如果只有 TLS 加密流量而没有可读字段，抓到包不等于拿到账号。** 本教程不提供绕过 TLS、导出他人密钥或破解固件的方法；回到设备合法管理页面或运营商支持渠道，必要时说明固件暂不适配。
+这个请求没有 MAC。用以太网源 MAC 与机顶盒网络页核对。两者不一致时先查明原因，不要猜。
 
-**完成标志：** 拿到同一设备、同一次成功认证链的 UserID、协议 SN、核对过的 MAC、初始认证地址，而不是临时 token。
+找不到 HTTP 或登录入口时，展开文末的“HTTP 请求找不到”一节。
 
-## 5. 填入 Compose 并验证
+**只有 TLS 加密流量时，这套方法不能读出账号。** 不要尝试重放加密数据。请回到设备管理页或运营商支持渠道确认。
 
-填写**私有部署目录**里的 `compose.yaml` 的 `environment`，不要覆盖后提交公开仓库的示例。三个 LAN 服务地址、允许网段和 IPTV 接口见 [配置参考](configuration.md)，再回到 [快速开始](../README.md#快速开始) 拉取镜像。
+**成功检查：** 已取得同一设备、同一次成功登录的 UserID、协议 SN、认证地址，并核对了 MAC。
 
-不要把 `UserToken`、`JSESSIONID`、BIMS token、`encrytoken` 或抓到的 `authenticator` 当长期配置。HomeCast 使用自己的身份重新获取挑战并认证，不是每天重放旧抓包。`HOMECAST_PUBLIC_URL` 是播放器访问 HomeCast 的 LAN 地址，不是运营商认证地址。
+## 5. 填入 HomeCast 并验证
 
-验证：页面有最近成功更新时间、真实频道与节目单；两条 HTTP 订阅可读取；客户端能播放至少一个自己有权限的频道。列表存在不代表所有频道都有权限，视频问题还需查 [外部 udpxy](udpxy.md)。
+编辑私有部署目录中 `compose.yaml` 的 `environment`。不要把填好的文件提交到公开仓库。
 
-再次刷新成功后确认无需重抓。程序会读取 IPTV 接口当前 IPv4，运营商分配的 IP 改变本身不要求重抓；更换机顶盒、账号或协议时才可能需要重新核对身份或调整适配。
+| 找到的内容 | 填入的变量 | 上例对应值 |
+| --- | --- | --- |
+| 登录参数 `UserID` | `HOMECAST_USER_ID` | `example@etv2` |
+| 登录参数 `SN` | `HOMECAST_PROTOCOL_SN` | `EXAMPLE1234` |
+| 已核对的机顶盒 MAC | `HOMECAST_MAC` | 需自行核对，格式为六组冒号分隔的十六进制数 |
+| 初始认证 `Host` | `HOMECAST_AUTH_HOST` | `192.0.2.2:7001`，不加协议或路径 |
+| 部署主机的 IPTV 设备名 | `HOMECAST_INTERFACE` | 来自本机网络配置，不是抓到的账号字段 |
 
-## 卡住时检查什么
+抓包接口不一定就是 `HOMECAST_INTERFACE`。后者必须是 HomeCast 主机实际用于访问 IPTV 的设备。
 
-| 现象 | 先检查 |
+**不要把临时 token 当配置。** `UserToken`、`JSESSIONID`、BIMS token、`encrytoken` 和抓到的 `authenticator` 都不用填写。
+
+HomeCast 会用自己的身份重新认证，不是反复重放旧抓包。
+
+LAN 地址、允许网段和接口设置见 [配置指南](configuration.md)。`HOMECAST_PUBLIC_URL` 是播放器访问 HomeCast 的地址，不是运营商认证地址。
+
+填好后回到 [快速开始](../README.md#快速开始) 启动服务。
+
+**成功检查：**
+
+1. 页面显示真实频道、节目单和最近成功时间。
+2. M3U 和 XMLTV 两条订阅都能读取。
+3. 客户端能播放至少一个已订阅频道。
+4. 再次刷新也能成功，不需要重新抓包。
+
+只有列表、没有画面时，先查 [外部 udpxy](udpxy.md)。频道在列表中，不代表账号有全部频道的权限。
+
+运营商分配的 IPTV 地址变化时，HomeCast 会读取接口当前 IPv4。仅地址变化不需要重抓身份。
+
+## 备用方法
+
+<details>
+<summary>软路由抓不到包：改用端口镜像</summary>
+
+硬件交换或卸载可能让路由器看不到经过的流量。先核对接口和 MAC，不要直接关闭全家的硬件加速。
+
+已有管理型交换机时，可以使用端口镜像：
+
+1. 将机顶盒端口的双向流量镜像到一个专用端口。
+2. 把电脑的有线网卡接到这个镜像端口。
+3. 在 Wireshark 选择该网卡，设置捕获过滤器 `ether host 02:00:00:00:00:01`。替换 MAC。
+4. 打开“捕获 -> 选项”的 Options 页，设置自动停止：120 秒或 10000 个包，先达到即停止。
+5. 先开始抓包，再开机顶盒。完成后保存 PCAP，从第 4 步继续。
+
+选项位置见 [Wireshark 捕获选项说明](https://www.wireshark.org/docs/wsug_html_chunked/ChCapCaptureOptions.html)。
+
+普通交换机旁边插一台电脑，通常看不到机顶盒的单播登录流量。镜像端口不要接回家庭网络，以免成环。
+
+专用网络 TAP 也可作为观察点，不必为此同时购买多种设备。
+
+不要将 tcpdump 改成 `-i any` 后照搬以太网 MAC 过滤。它可能使用不同的链路格式。
+
+</details>
+
+<details>
+<summary>路由器没有 timeout</summary>
+
+在软路由的 root 管理 shell 中执行。仍须替换接口和 MAC：
+
+```bash
+umask 077
+mkdir -p /root/iptv-private
+chmod 700 /root/iptv-private
+tcpdump -i YOUR_CAPTURE_INTERFACE -s 0 -U -c 10000 \
+  -w - 'ether host 02:00:00:00:00:01' > /root/iptv-private/bootstrap.pcap
+```
+
+看到 `listening on` 后开机顶盒。正常播放后，或达到约 120 秒时，手动按 `Ctrl+C`。
+
+10000 个包只是包数上限，不是时间上限。这个方法不能无人值守。
+
+</details>
+
+<details>
+<summary>HTTP 请求找不到</summary>
+
+先确认 PCAP 有机顶盒与服务器的双向 TCP 流量。只有 UDP 视频时，可能抓得太晚，或提前达到包数上限。
+
+非标准端口可能未被识别成 HTTP。确认内容是明文 HTTP 后，选择 **Analyze / Decode As（分析 / 解码为）**，将对应 TCP 端口指定为 HTTP。
+
+再用 `http.request` 查看请求。找不到 `4kLogAuth.do` 时，在同一次开机的 TCP 流中搜索 `UserID`、`SN` 或 `ottauth`。
+
+请求可能分成多个包。使用 **Follow / TCP Stream** 查看重组内容，不要只读一个包。
+
+这些名称只是已验证协议的线索，不保证适用于所有固件。Decode As 不会解密 TLS。
+
+</details>
+
+## 仍然卡住时
+
+| 现象 | 下一步 |
 | --- | --- |
-| PCAP 没有包 | 观察点是否经过设备流量；接口、MAC、镜像源端口和方向 |
-| 只有 UDP 视频，没有登录 | 是否晚于开机认证才抓；是否提前达到包数上限 |
-| 有 TCP，HTTP 过滤却为空 | 非标准端口解码、流重组，或实际已使用 TLS |
-| 有 UserID，没有 SN | 同一次开机的入口请求与完整流；不要用贴纸 S/N 硬凑 |
-| 账号像是正确，认证仍失败 | IPTV IPv4、认证服务可达性、协议 SN、MAC、系统时间 |
-| 有频道，但视频不播放 | 客户端到 udpxy 的可达性、组播接口与业务权限，通常无需重抓账号 |
+| 没有抓到包 | 核对接口、MAC 和观察位置；必要时用端口镜像 |
+| 有 UserID，没有 SN | 查同一次登录的完整请求，不要用贴纸 S/N 凑数 |
+| 身份已填，认证失败 | 查 IPTV IPv4、认证服务连通性、协议 SN、MAC 和系统时间 |
+| 有频道，不能播放 | 查客户端到 udpxy 的连通性和频道权限 |
 
-求助时只提供设备型号、固件版本、观察位置、错误阶段和脱敏字段名。**不要在 issue、PR、截图或日志公开 PCAP、完整登录 URI、身份值、token 或 cookie。** 验证后删除不需要的临时抓包；确需保留时加密保存并限制访问。
+求助时提供设备型号、固件版本和出错步骤即可。不要附上原始 PCAP、完整登录 URI、身份、token 或 cookie。
+
+验证后删除不需要的临时抓包。确需保留时，加密保存并限制访问。
 
 ## 工具参考
 
